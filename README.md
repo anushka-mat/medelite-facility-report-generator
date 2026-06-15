@@ -6,7 +6,7 @@ The app allows a user to enter a nursing facility CCN, fetch public CMS facility
 
 ## Live Demo
 
-Live URL: To be added after Vercel deployment
+Live URL: https://medelite-facility-report-generator.vercel.app
 
 ## Public Repository
 
