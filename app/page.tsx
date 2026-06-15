@@ -23,9 +23,6 @@ type ReportRow = {
   source: 'CMS' | 'Manual' | 'Derived'
 }
 
-const CMS_PROVIDER_INFO_ENDPOINT =
-  'https://data.cms.gov/provider-data/api/1/datastore/query/4pq5-n9py/0'
-
 const initialManualInputs: ManualInputs = {
   overrideName: '',
   emr: 'PCC',
@@ -245,24 +242,6 @@ function BrandLogo({ compact = false }: { compact?: boolean }) {
   )
 }
 
-function parseCmsRows(json: unknown): CmsFacility[] {
-  if (Array.isArray(json)) return json as CmsFacility[]
-
-  if (json && typeof json === 'object') {
-    const obj = json as {
-      results?: CmsFacility[]
-      data?: CmsFacility[]
-      rows?: CmsFacility[]
-    }
-
-    if (Array.isArray(obj.results)) return obj.results
-    if (Array.isArray(obj.data)) return obj.data
-    if (Array.isArray(obj.rows)) return obj.rows
-  }
-
-  return []
-}
-
 export default function Home() {
   const [ccn, setCcn] = useState('686123')
   const [facility, setFacility] = useState<CmsFacility | null>(null)
@@ -380,43 +359,25 @@ export default function Home() {
     setFacility(null)
 
     try {
-      const url = new URL(CMS_PROVIDER_INFO_ENDPOINT)
-      url.searchParams.append('conditions[0][property]', 'cms_certification_number_ccn')
-      url.searchParams.append('conditions[0][value]', trimmedCcn)
-      url.searchParams.append('conditions[0][operator]', '=')
-
-      const response = await fetch(url.toString())
+      const response = await fetch(`/api/facility?ccn=${encodeURIComponent(trimmedCcn)}`)
+      const json = (await response.json()) as {
+        facility?: CmsFacility
+        error?: string
+      }
 
       if (!response.ok) {
-        throw new Error(`CMS API request failed with status ${response.status}`)
+        throw new Error(json.error ?? `Request failed with status ${response.status}.`)
       }
 
-      const json = await response.json()
-      const rows = parseCmsRows(json)
-
-      if (!rows || rows.length === 0) {
-        setError(`No CMS facility record found for CCN ${trimmedCcn}.`)
-        return
+      if (!json.facility) {
+        throw new Error('No facility data returned.')
       }
 
-      const matchingRow =
-        rows.find((row) => getField(row, 'CMS Certification Number (CCN)') === trimmedCcn) ??
-        rows[0]
-
-      const returnedCcn = getField(matchingRow, 'CMS Certification Number (CCN)')
-
-      if (returnedCcn !== trimmedCcn) {
-        setError(
-          `CMS returned data, but it did not match CCN ${trimmedCcn}. Returned CCN was ${returnedCcn}.`
-        )
-        return
-      }
-
-      setFacility(matchingRow)
+      setFacility(json.facility)
       setLastFetchedCcn(trimmedCcn)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      setError(`Could not fetch CMS data. ${message}`)
+      const message = err instanceof Error ? err.message : 'Could not fetch CMS data.'
+      setError(message)
     } finally {
       setLoading(false)
     }
